@@ -15,7 +15,11 @@ rec {
     flake-utils,
     nixpkgs,
     ...
-  }:
+  }: let
+    miseTools = (builtins.fromTOML (builtins.readFile ./mise.toml)).tools;
+    nodejs = {pkgs}: pkgs."nodejs_${miseTools.node}";
+    pnpm = {pkgs}: pkgs."pnpm_${miseTools.pnpm}";
+  in
     flake-utils.lib.eachSystem [
       "aarch64-darwin"
       "x86_64-darwin"
@@ -29,7 +33,10 @@ rec {
     in rec {
       formatter = pkgs.alejandra;
       packages = {
-        headplane = pkgs.callPackage ./nix/package.nix {};
+        headplane = pkgs.callPackage ./nix/package.nix {
+          nodejs = nodejs {inherit pkgs;};
+          pnpm = pnpm {inherit pkgs;};
+        };
         headplane-agent = pkgs.callPackage ./nix/agent.nix {};
       };
       checks.default = pkgs.symlinkJoin {
@@ -51,9 +58,10 @@ rec {
           ${providedPackages}
         '';
         packages = [
+          (nodejs {inherit pkgs;})
+          (pnpm {inherit pkgs;})
           pkgs.go
-          pkgs.nodejs-slim_22
-          pkgs.pnpm_10
+          pkgs.mise
           pkgs.typescript-language-server
         ];
         env = [];
@@ -61,7 +69,10 @@ rec {
     })
     // {
       overlays.default = final: prev: {
-        headplane = final.callPackage ./nix/package.nix {};
+        headplane = final.callPackage ./nix/package.nix {
+          nodejs = nodejs {pkgs = final;};
+          pnpm = pnpm {pkgs = final;};
+        };
         headplane-agent = final.callPackage ./nix/agent.nix {};
       };
       nixosModules.headplane = import ./nix/module.nix;
