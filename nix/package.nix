@@ -55,12 +55,17 @@ in
 
     installPhase = ''
       runHook preInstall
+
       mkdir -p $out/{bin,share/headplane}
+
       cp -r build $out/share/headplane/
-      sed -i "s;$PWD;../..;" $out/share/headplane/build/server/index.js
+      cp -r drizzle $out/share/headplane/
+      cp -r node_modules $out/share/headplane/
+
       makeWrapper ${lib.getExe nodejs} $out/bin/headplane \
           --chdir $out/share/headplane \
           --add-flags $out/share/headplane/build/server/index.js
+
       runHook postInstall
     '';
   })
