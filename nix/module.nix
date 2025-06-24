@@ -332,6 +332,19 @@ in {
         Restart = "always";
         RestartSec = 5;
 
+        LoadCredential = [
+          "oidc/client_secret:${cfg.settings.oidc.client_secret_path}"
+          "oidc/headscale_api_key_path:${cfg.settings.oidc.headscale_api_key_path}"
+          "server/cookie_secret:${cfg.settings.server.cookie_secret_path}"
+        ];
+        Environment = [
+          "HEADPLANE_LOAD_ENV_OVERRIDES=true"
+
+          "HEADPLANE_SERVER__COOKIE_SECRET=%d/server/cookie_secret"
+          "HEADPLANE_OIDC__COOKIE_SECRET=%d/oidc/cookie_secret"
+          "HEADPLANE_OIDC__HEADSCALE_API_KEY_PATH=%d/oidc/headscale_api_key_path"
+        ];
+
         # TODO: Harden `systemd` security according to the "The Principle of Least Power".
         # See: `$ systemd-analyze security headplane`.
       };
