@@ -178,6 +178,32 @@ in {
           integration = lib.mkOption {
             type = lib.types.submodule {
               options = {
+                agent = lib.mkOption {
+                  type = lib.types.submodule {
+                    options = {
+                      enabled = lib.mkOption {
+                        type = lib.types.bool;
+                        default = false;
+                        description = ''
+                          The Headplane agent allows retrieving information about nodes
+                          This allows the UI to display version, OS, and connectivity data
+                          You will see the Headplane agent in your Tailnet as a node when
+                          it connects.
+                        '';
+                      };
+                      pre_authkey_path = lib.mkOption {
+                        type = lib.types.nullOr lib.types.path;
+                        default = null;
+                        description = ''
+                          To connect to your Tailnet, you need to generate a pre-auth key
+                          This can be done via the web UI or through the `headscale` CLI.
+                        '';
+                      };
+                    };
+                  };
+                  default = {};
+                  description = "Native process integration settings.";
+                };
                 proc = lib.mkOption {
                   type = lib.types.submodule {
                     options = {
@@ -261,6 +287,16 @@ in {
                   '';
                   example = "https://headscale.example.com/admin/oidc/callback";
                 };
+
+                user_storage_file = lib.mkOption {
+                  type = lib.types.nullOr lib.types.path;
+                  default = null;
+                  description = ''
+                    Stores the users and their permissions for Headplane
+                    This is a path to a JSON file, default is specified below.
+                  '';
+                  example = "/var/lib/headplane/users.json";
+                };
               };
             };
             default = {};
@@ -289,7 +325,22 @@ in {
   config = mkIf cfg.enable {
     environment = {
       systemPackages = [cfg.package];
-      etc."headplane/config.yaml".source = "${settingsFile}";
+      etc = {
+        "headplane/config.yaml".source = "${settingsFile}";
+        "headplane/creds.env".text = let
+          envs =
+            (lib.optional (cfg.settings.integration.agent.pre_authkey_path != null) ''export HEADPLANE_INTEGRATION__AGENT_PRE_AUTHKEY="$(cat ${cfg.settings.integration.agent.pre_authkey_path})"'')
+            ++ (lib.optional (cfg.settings.oidc.client_secret_path != null) ''export HEADPLANE_OIDC__CLIENT_SECRET="$(cat ${cfg.settings.oidc.client_secret_path})"'')
+            ++ (lib.optional (cfg.settings.oidc.headscale_api_key_path != null) ''export HEADPLANE_OIDC__HEADSCALE_API_KEY="$(cat ${cfg.settings.oidc.headscale_api_key_path})"'')
+            ++ (lib.optional (cfg.settings.server.cookie_secret_path != null) ''export HEADPLANE_SERVER__COOKIE_SECRET="$(cat ${cfg.settings.server.cookie_secret_path})"'');
+          result =
+            (lib.optional ((builtins.length envs) > 0) "HEADPLANE_LOAD_ENV_OVERRIDES=true")
+            ++ envs
+            ++ ["HEADPLANE_DEBUG_LOG=true"];
+          string = builtins.foldl' (acc: elem: acc + "\n" + elem) "" result;
+        in
+          string;
+      };
     };
 
     systemd.services.headplane-agent =
@@ -328,22 +379,9 @@ in {
         Group = config.services.headscale.group;
         StateDirectory = "headplane";
 
-        ExecStart = "${pkgs.headplane}/bin/headplane";
+        ExecStart = "${pkgs.bash}/bin/bash -ac '. /etc/headplane/creds.env; exec ${pkgs.headplane}/bin/headplane'";
         Restart = "always";
         RestartSec = 5;
-
-        LoadCredential = [
-          "oidc/client_secret:${cfg.settings.oidc.client_secret_path}"
-          "oidc/headscale_api_key_path:${cfg.settings.oidc.headscale_api_key_path}"
-          "server/cookie_secret:${cfg.settings.server.cookie_secret_path}"
-        ];
-        Environment = [
-          "HEADPLANE_LOAD_ENV_OVERRIDES=true"
-
-          "HEADPLANE_SERVER__COOKIE_SECRET=%d/server/cookie_secret"
-          "HEADPLANE_OIDC__COOKIE_SECRET=%d/oidc/cookie_secret"
-          "HEADPLANE_OIDC__HEADSCALE_API_KEY_PATH=%d/oidc/headscale_api_key_path"
-        ];
 
         # TODO: Harden `systemd` security according to the "The Principle of Least Power".
         # See: `$ systemd-analyze security headplane`.
