@@ -7,8 +7,8 @@
   inherit
     (lib)
     attrsToList
-    listToAttrs
-    map
+    foldl'
+    length
     mkEnableOption
     mkIf
     mkOption
@@ -19,18 +19,16 @@
   cfg = config.services.headplane;
   settingsFormat = pkgs.formats.yaml {};
   settingsFile = settingsFormat.generate "headplane-config.yaml" cfg.settings;
-  agentEnv = listToAttrs (map (n: {
-    name = n.name;
-    value =
-      if ((typeOf n.value) == "bool")
-      then
-        (
-          if (n.value)
-          then "true"
-          else "false"
-        )
-      else n.value;
-  }) (attrsToList cfg.agent.settings));
+  toString = value:
+    if ((typeOf value) == "bool")
+    then
+      (
+        if value
+        then "true"
+        else "false"
+      )
+    else value;
+  # agentEnv = foldl' (acc: elem: ["${elem.name}=${toString elem.value}"] ++ acc) [] (attrsToList cfg.agent.settings);
 in {
   options.services.headplane = {
     enable = mkEnableOption "headplane";
@@ -334,10 +332,10 @@ in {
             ++ (lib.optional (cfg.settings.oidc.headscale_api_key_path != null) ''export HEADPLANE_OIDC__HEADSCALE_API_KEY="$(cat ${cfg.settings.oidc.headscale_api_key_path})"'')
             ++ (lib.optional (cfg.settings.server.cookie_secret_path != null) ''export HEADPLANE_SERVER__COOKIE_SECRET="$(cat ${cfg.settings.server.cookie_secret_path})"'');
           result =
-            (lib.optional ((builtins.length envs) > 0) "HEADPLANE_LOAD_ENV_OVERRIDES=true")
+            (lib.optional ((length envs) > 0) "HEADPLANE_LOAD_ENV_OVERRIDES=true")
             ++ envs
             ++ ["HEADPLANE_DEBUG_LOG=true"];
-          string = builtins.foldl' (acc: elem: acc + "\n" + elem) "" result;
+          string = foldl' (acc: elem: acc + "\n" + elem) "" result;
         in
           string;
       };
@@ -352,7 +350,7 @@ in {
         after = ["headplane.service"];
         requires = ["headplane.service"];
 
-        environment = agentEnv;
+        environment = cfg.agent.settings;
 
         serviceConfig = {
           User = config.services.headscale.user;
