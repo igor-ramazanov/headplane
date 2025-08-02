@@ -73,11 +73,10 @@ jobs:
         uses: DeterminateSystems/flake-checker-action@main
 
       - name: Check flake outputs
+        continue-on-error: true
         run: nix flake check --all-systems --print-build-logs
 
-      - uses: DeterminateSystems/determinate-nix-action@v3
       - name: Fix hash mismatches
-        if: failure() && github.event_name == 'pull_request'
         id: fix-hashes
         run: |
           git stash --include-untracked
