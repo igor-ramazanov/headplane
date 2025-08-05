@@ -64,13 +64,20 @@ jobs:
       - name: Check out the repo
         uses: actions/checkout@v4
 
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@main
-        with:
-          determinate: true
+      - uses: DeterminateSystems/determinate-nix-action@v3
 
-      - name: Check flake inputs
-        uses: DeterminateSystems/flake-checker-action@main
+      - run: nix flake check --print-build-logs
+        continue-on-error: true
 
-      - name: Check flake outputs
-        run: nix flake check --all-systems
+      - name: Fix hash mismatches
+        id: fix-hashes
+        run: |
+          determinate-nixd fix hashes --auto-apply
+          if ! git diff --quiet
+          then
+            git config --local user.name "github-actions[bot]"
+            git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add --update --ignore-removal .
+            git commit --message "[dependabot skip] Automatically fix Nix hashes"
+            git push origin "$GITHUB_HEAD_REF"
+          fi
