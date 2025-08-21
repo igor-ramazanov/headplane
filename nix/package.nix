@@ -26,11 +26,11 @@ in
 
     dontCheckForBrokenSymlinks = true;
 
-  pnpmDeps = pnpm_10.fetchDeps {
-    inherit (finalAttrs) pname version src;
-    hash = "sha256-xjjkqbgjYaAGYAmlTFE+Lq3Hp6myZKaW3br0YTDNhQA=";
-	fetcherVersion = 1;
-  };
+    pnpmDeps = pnpm_10.fetchDeps {
+      inherit (finalAttrs) pname version src;
+      hash = "sha256-drsQWU1/cDcbJ75CerXQSYFNNAOgaX6rFn6wRom8fiU=";
+      fetcherVersion = 1;
+    };
 
     buildPhase = ''
       runHook preBuild
